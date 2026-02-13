@@ -16,7 +16,7 @@ from livekit.agents import (
     cli,
     WorkerOptions,
 )
-from livekit.plugins import deepgram, openai, silero, elevenlabs
+from livekit.plugins import deepgram, openai, silero  # elevenlabs
 
 load_dotenv(override=True)
 
@@ -35,46 +35,22 @@ logger.addHandler(ch)
 class AlliAgent(Agent):
     def __init__(self):
         instructions = """
-You are Alli, a highly knowledgeable nutrition specialist assistant with extensive expertise in nutritional science research and clinical studies.
-
-Your expertise:
-- Nutritional science and evidence-based dietary guidelines
-- Macro and micronutrients (vitamins, minerals, proteins, fats, carbohydrates)
-- Food composition, nutritional values, and bioavailability
-- Clinical nutrition research and scientific literature
-- Peer-reviewed journals and research papers in nutrition science
-- Current nutritional guidelines from authoritative sources (WHO, USDA, FDA, European Food Safety Authority)
-- Dietary recommendations for various health goals and medical conditions
-- Nutritional biochemistry and metabolism
-
-Your knowledge base includes:
-- Leading nutrition and medical journals (The American Journal of Clinical Nutrition, Journal of Nutrition, The New England Journal of Medicine, JAMA, Clinical Nutrition, European Journal of Clinical Nutrition)
-- Food composition databases (USDA FoodData Central, FAO Regional Food Composition Tables)
-- Nutrient reference values from multiple countries (US, Canada, Australia, New Zealand, UK, EU)
-- Evidence-based nutritional interventions and their outcomes
-- Recent research findings and systematic reviews in nutrition
+You are Alli, a friendly and helpful conversational assistant.
 
 Your personality:
-- Professional yet approachable and friendly
-- Patient and empathetic
-- Clear in explaining complex nutritional and scientific concepts
-- Non-judgmental about dietary choices
-- Supportive and encouraging
-- Committed to evidence-based practice
+- Warm, approachable, and patient
+- Clear and concise in your responses
+- Eager to help with any questions or tasks
+- Professional yet personable
 
 Guidelines:
-- Listen carefully to the user's nutrition-related questions or concerns
-- Provide accurate, evidence-based nutritional information backed by scientific research
-- Reference scientific studies and research findings when relevant
-- Explain nutritional concepts in simple, understandable terms while maintaining scientific accuracy
-- Ask clarifying questions about dietary preferences, allergies, health conditions, or specific goals when relevant
-- Offer practical, actionable nutrition advice grounded in current research
-- Distinguish between well-established scientific consensus and emerging research
-- Always remind users that you're providing general nutrition information based on scientific literature, and they should consult healthcare professionals for personalized medical advice
-- Be respectful of different dietary preferences and cultural food practices
-- Stay current with the latest nutritional research and guidelines
+- Listen carefully to what the user says
+- Provide helpful, accurate responses
+- Ask clarifying questions when needed
+- Keep the conversation natural and flowing
+- Be respectful and courteous at all times
 
-Your goal is to help users make informed decisions about their nutrition and dietary choices through friendly, expert guidance supported by scientific evidence and research.
+Your goal is to have a pleasant conversation and assist the user with whatever they need.
 """
         super().__init__(instructions=instructions)
 
@@ -101,15 +77,22 @@ def prewarm(proc: JobProcess):
     except Exception as e:
         logger.exception("❌ Failed to prewarm Deepgram STT: %s", e)
     
+    # ElevenLabs TTS - commented out
+    # try:
+    #     voice_id = os.getenv("ELEVENLABS_VOICE_ID", "56AoDkrOh6qfVPDXZ7Pt")
+    #     proc.userdata["tts"] = elevenlabs.TTS(
+    #         model="eleven_flash_v2_5",
+    #         voice_id=voice_id
+    #     )
+    #     logger.info("✅ ElevenLabs TTS prewarmed (voice: %s)", voice_id)
+    # except Exception as e:
+    #     logger.exception("❌ Failed to prewarm ElevenLabs TTS: %s", e)
+    
     try:
-        voice_id = os.getenv("ELEVENLABS_VOICE_ID", "56AoDkrOh6qfVPDXZ7Pt")
-        proc.userdata["tts"] = elevenlabs.TTS(
-            model="eleven_flash_v2_5",
-            voice_id=voice_id
-        )
-        logger.info("✅ ElevenLabs TTS prewarmed (voice: %s)", voice_id)
+        proc.userdata["tts"] = deepgram.TTS(model="aura-asteria-en")
+        logger.info("✅ Deepgram TTS prewarmed")
     except Exception as e:
-        logger.exception("❌ Failed to prewarm ElevenLabs TTS: %s", e)
+        logger.exception("❌ Failed to prewarm Deepgram TTS: %s", e)
     
     logger.info("🎉 Prewarm complete")
 
@@ -138,10 +121,11 @@ async def entrypoint(ctx: JobContext):
     logger.info("🔥 Loading models from prewarmed cache...")
     vad = ctx.proc.userdata.get("vad") or silero.VAD.load()
     stt = ctx.proc.userdata.get("stt") or deepgram.STT(model="nova-3")
-    tts = ctx.proc.userdata.get("tts") or elevenlabs.TTS(
-        model="eleven_flash_v2_5",
-        voice_id=os.getenv("ELEVENLABS_VOICE_ID", "56AoDkrOh6qfVPDXZ7Pt")
-    )
+    # tts = ctx.proc.userdata.get("tts") or elevenlabs.TTS(
+    #     model="eleven_flash_v2_5",
+    #     voice_id=os.getenv("ELEVENLABS_VOICE_ID", "56AoDkrOh6qfVPDXZ7Pt")
+    # )
+    tts = ctx.proc.userdata.get("tts") or deepgram.TTS(model="aura-asteria-en")
     logger.info("✅ Models loaded successfully")
     
     session = AgentSession(
