@@ -18,6 +18,9 @@ from livekit.agents import (
 )
 from livekit.plugins import deepgram, openai, silero  # elevenlabs
 
+# Import custom Google TTS
+from google_tts import GoogleTTS
+
 load_dotenv(override=True)
 
 # -------------------------
@@ -77,22 +80,19 @@ def prewarm(proc: JobProcess):
     except Exception as e:
         logger.exception("❌ Failed to prewarm Deepgram STT: %s", e)
     
-    # ElevenLabs TTS - commented out
-    # try:
-    #     voice_id = os.getenv("ELEVENLABS_VOICE_ID", "56AoDkrOh6qfVPDXZ7Pt")
-    #     proc.userdata["tts"] = elevenlabs.TTS(
-    #         model="eleven_flash_v2_5",
-    #         voice_id=voice_id
-    #     )
-    #     logger.info("✅ ElevenLabs TTS prewarmed (voice: %s)", voice_id)
-    # except Exception as e:
-    #     logger.exception("❌ Failed to prewarm ElevenLabs TTS: %s", e)
-    
+    # Google/Gemini TTS with Chirp HD voice
     try:
-        proc.userdata["tts"] = deepgram.TTS(model="aura-asteria-en")
-        logger.info("✅ Deepgram TTS prewarmed")
+        voice_id = os.getenv("GOOGLE_VOICE_ID", "en-AU-Chirp-HD-O")
+        api_key = os.getenv("GOOGLE_API_KEY")
+        proc.userdata["tts"] = GoogleTTS(
+            voice_name=voice_id,
+            api_key=api_key,
+            speaking_rate=1.0,  # Adjust speed if needed (0.25 to 4.0)
+            pitch=0.0,          # Adjust pitch if needed (-20.0 to 20.0)
+        )
+        logger.info("✅ Google TTS prewarmed (voice: %s)", voice_id)
     except Exception as e:
-        logger.exception("❌ Failed to prewarm Deepgram TTS: %s", e)
+        logger.exception("❌ Failed to prewarm Google TTS: %s", e)
     
     logger.info("🎉 Prewarm complete")
 
@@ -107,7 +107,10 @@ async def entrypoint(ctx: JobContext):
     # Load prewarmed models
     vad = ctx.proc.userdata.get("vad") or silero.VAD.load()
     stt = ctx.proc.userdata.get("stt") or deepgram.STT(model="nova-3")
-    tts = ctx.proc.userdata.get("tts") or deepgram.TTS(model="aura-asteria-en")
+    tts = ctx.proc.userdata.get("tts") or GoogleTTS(
+        voice_name=os.getenv("GOOGLE_VOICE_ID", "en-AU-Chirp-HD-O"),
+        api_key=os.getenv("GOOGLE_API_KEY"),
+    )
 
     session = AgentSession(
         stt=stt,
