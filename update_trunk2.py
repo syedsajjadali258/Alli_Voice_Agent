@@ -40,7 +40,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 async def main():
-    trunk_id = "ST_bbM2PaCoUbMg"
+    trunk_id = "ST_xFrQyMmoMry9"
     livekit_api = api.LiveKitAPI(
         url=os.environ["LIVEKIT_URL"],
         api_key=os.environ["LIVEKIT_API_KEY"],

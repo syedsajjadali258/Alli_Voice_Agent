@@ -9,7 +9,7 @@ load_dotenv(override=True)
 
 async def update_dispatch_rule():
 
-    rule_id = "SDR_Ym3s7TEdNLLo"
+    rule_id = "SDR_TnNi3juVecPY"
 
     attributes = {
         "caller_number": "{{from}}",

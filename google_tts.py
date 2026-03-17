@@ -6,11 +6,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import AsyncIterable
 from dataclasses import dataclass
 
 from google.cloud import texttospeech_v1 as texttospeech
 from livekit.agents import tts
+from livekit.agents.types import DEFAULT_API_CONNECT_OPTIONS, APIConnectOptions
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +103,8 @@ class GoogleTTS(tts.TTS):
     def synthesize(
         self,
         text: str,
+        *,
+        conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS,
     ) -> "ChunkedStream":
         """
         Synthesize text to speech.
@@ -116,6 +118,7 @@ class GoogleTTS(tts.TTS):
         return ChunkedStream(
             tts=self,
             text=text,
+            conn_options=conn_options,
         )
 
 
@@ -127,12 +130,17 @@ class ChunkedStream(tts.ChunkedStream):
         *,
         tts: GoogleTTS,
         text: str,
+        conn_options: APIConnectOptions,
     ):
-        super().__init__(tts=tts)
+        super().__init__(
+            tts=tts,
+            input_text=text,
+            conn_options=conn_options,
+        )
         self._tts = tts
         self._text = text
 
-    async def _run(self) -> AsyncIterable[tts.SynthesizedAudio]:
+    async def _run(self, output_emitter: tts.AudioEmitter) -> None:
         """
         Run the synthesis and yield audio chunks.
         Google TTS doesn't support streaming, so we synthesize the entire text at once.
@@ -168,22 +176,19 @@ class ChunkedStream(tts.ChunkedStream):
                 ),
             )
 
-            # The response's audio_content is binary audio data
-            # We'll yield it as a single chunk since Google TTS doesn't stream
-            if response.audio_content:
-                # Create request ID for tracking
-                request_id = os.urandom(16).hex()
+            output_emitter.initialize(
+                request_id=os.urandom(16).hex(),
+                sample_rate=self._tts._sample_rate,
+                num_channels=1,
+                mime_type="audio/pcm",
+                stream=False,
+            )
 
-                # Yield the synthesized audio
-                yield tts.SynthesizedAudio(
-                    request_id=request_id,
-                    frame=rtc.AudioFrame(
-                        data=response.audio_content,
-                        sample_rate=self._tts._sample_rate,
-                        num_channels=1,
-                        samples_per_channel=len(response.audio_content) // 2,  # 16-bit audio
-                    ),
-                )
+            # The response's audio_content is binary audio data.
+            # Push as a single PCM chunk because Google TTS here is non-streaming.
+            if response.audio_content:
+                output_emitter.push(response.audio_content)
+                output_emitter.flush()
 
                 logger.debug(
                     f"Synthesized {len(response.audio_content)} bytes of audio "
@@ -193,7 +198,3 @@ class ChunkedStream(tts.ChunkedStream):
         except Exception as e:
             logger.exception(f"Error during Google TTS synthesis: {e}")
             raise
-
-
-# Import rtc for AudioFrame
-from livekit import rtc
